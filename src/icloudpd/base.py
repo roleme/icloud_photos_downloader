@@ -1183,6 +1183,7 @@ def core_single_run(
                             user_config.sizes,
                             lp_filename_generator,
                             user_config.align_raw,
+                            user_config.file_match_policy,
                         )
                     else:
                         pass

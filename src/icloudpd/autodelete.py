@@ -12,6 +12,8 @@ from tzlocal import get_localzone
 from icloudpd.paths import local_download_path
 from pyicloud_ipd.asset_version import calculate_version_filename
 from pyicloud_ipd.raw_policy import RawTreatmentPolicy
+from pyicloud_ipd.file_match import FileMatchPolicy
+from pyicloud_ipd.services.photos import apply_file_match_policy
 from pyicloud_ipd.services.photos import PhotoLibrary
 from pyicloud_ipd.utils import disambiguate_filenames
 from pyicloud_ipd.version_size import AssetVersionSize, VersionSize
@@ -39,6 +41,7 @@ def autodelete_photos(
     _sizes: Sequence[AssetVersionSize],
     lp_filename_generator: Callable[[str], str],
     raw_policy: RawTreatmentPolicy,
+    file_match_policy: FileMatchPolicy,
 ) -> None:
     """
     Scans the "Recently Deleted" folder and deletes any matching files
@@ -82,10 +85,14 @@ def autodelete_photos(
         versions, filename_overrides = disambiguate_filenames(
             media.versions_with_raw_policy(raw_policy), _sizes, media, lp_filename_generator
         )
+        # PATCH (id7 autodelete fix, upstream regression f52826c / #1299):
+        # media.filename hardcodes NAME_SIZE, so apply the configured policy here
+        # to match the id7-suffixed names produced at download time.
+        _base_filename = apply_file_match_policy(file_match_policy, media.id)(media.filename)
         for _size, _version in versions.items():
             if _size in [AssetVersionSize.ALTERNATIVE, AssetVersionSize.ADJUSTED]:
                 version_filename = calculate_version_filename(
-                    media.filename,
+                    _base_filename,
                     _version,
                     _size,
                     lp_filename_generator,
@@ -99,7 +106,7 @@ def autodelete_photos(
         for _size, _version in media.versions_with_raw_policy(raw_policy).items():
             if _size not in [AssetVersionSize.ALTERNATIVE, AssetVersionSize.ADJUSTED]:
                 version_filename = calculate_version_filename(
-                    media.filename,
+                    _base_filename,
                     _version,
                     _size,
                     lp_filename_generator,
